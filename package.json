@@ -1,0 +1,44 @@
+{
+  "name": "@liveblocks-examples/nextjs-tiptap",
+  "description": "This example shows how to build a collaborative text editor with Liveblocks, TipTap, and Next.js.",
+  "license": "Apache-2.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "@liveblocks/client": "^3.3.0",
+    "@liveblocks/node": "^3.3.0",
+    "@liveblocks/react": "^3.3.0",
+    "@liveblocks/react-tiptap": "^3.3.0",
+    "@liveblocks/react-ui": "^3.3.0",
+    "@liveblocks/yjs": "^3.3.0",
+    "@radix-ui/react-dialog": "^1.1.2",
+    "@radix-ui/react-popover": "^1.0.7",
+    "@stream-io/node-sdk": "^0.6.5",
+    "@stream-io/video-react-sdk": "^1.20.2",
+    "@tiptap/pm": "^2.6.6",
+    "@tiptap/react": "^2.6.6",
+    "@tiptap/starter-kit": "^2.6.6",
+    "@types/node": "^18.19.124",
+    "@types/react": "^18.0.27",
+    "@types/react-dom": "^18.0.10",
+    "assemblyai": "^4.16.0",
+    "next": "^14.2.4",
+    "node-record-lpcm16": "^1.0.1",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "recordrtc": "^5.6.2",
+    "stream": "^0.0.3",
+    "typescript": "^5.2.2"
+  },
+  "devDependencies": {
+    "@types/recordrtc": "^5.6.14",
+    "autoprefixer": "^10.4.19",
+    "postcss": "^8.4.38",
+    "tailwindcss": "^3.4.4"
+  }
+}
