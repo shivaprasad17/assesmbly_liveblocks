@@ -1,9 +1,8 @@
-import type { NextApiRequest, NextApiResponse } from "next";
-// import * as record from "node-record-lpcm16";
+import { NextResponse } from "next/server";
 import record from "node-record-lpcm16";
 import fs from "fs";
 
-export async function GET(req: NextApiRequest, res: NextApiResponse) {
+export async function GET(request: Request) {
   const file = fs.createWriteStream("output.wav", { encoding: "binary" });
 
   const recording = record.start({
@@ -15,8 +14,10 @@ export async function GET(req: NextApiRequest, res: NextApiResponse) {
 
   recording.pipe(file);
 
+  // Stop after 5 seconds
   setTimeout(() => {
     record.stop();
-    res.status(200).json({ message: "Recording saved to output.wav" });
-  }, 5000); // record for 5 seconds
+  }, 5000);
+
+  return NextResponse.json({ message: "Recording started, will stop after 5s" });
 }
