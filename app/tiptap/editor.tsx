@@ -11,6 +11,9 @@ import {
   FloatingToolbar,
 } from "@liveblocks/react-tiptap";
 import StarterKit from "@tiptap/starter-kit";
+import TextStyle from "@tiptap/extension-text-style"
+import Color from "@tiptap/extension-color";
+import Paragraph from "@tiptap/extension-paragraph";
 import { useThreads } from "@liveblocks/react";
 import { useIsMobile } from "./use-is-mobile";
 import VersionsDialog from "../version-history-dialog";
@@ -18,6 +21,7 @@ import { AssemblyAI } from "assemblyai";
 import { Readable } from "stream";
 import dynamic from "next/dynamic";
 import React, { useState, useRef ,useEffect} from "react";
+import { T } from "@liveblocks/react/dist/room-BE4TZf40.cjs";
 const API_KEY = "6ba0b65b6f404cb285e0c3f372633b9b";
 
 const API_ENDPOINT_BASE_URL = "wss://streaming.assemblyai.com/v3/ws";
@@ -47,6 +51,213 @@ export default function TiptapEditor() {
       }
     };
   }, []);
+
+  const CustomParagraph = Paragraph.extend({
+    addAttributes() {
+      return {
+        class: {
+          default: null,
+          parseHTML: element => element.getAttribute("class"),
+          renderHTML: attributes => {
+            if (!attributes.class) return {};
+            return { class: attributes.class };
+          },
+        },
+      };
+    },
+  });
+
+  const addNewLine = (text: string) => {
+    if (!editor) return;
+
+    // editor
+    //   .chain()
+    //   .focus()
+    //   .insertContent([
+    //     {
+    //       type: "paragraph",
+    //       content: [{ type: "text", text }],
+    //     },
+    //   ])
+    //   .run();
+    editor.chain().focus().insertContent([
+      {
+        type: "paragraph",
+        content: [
+          // {
+          //   type: "text",
+          //   text: "Bold text",
+          //   marks: [{ type: "bold" }],
+          // },
+          // {
+          //   type: "text",
+          //   text: " and ",
+          // },
+          {
+            type: "text",
+            text: text,
+            marks: [
+              { type: "textStyle", attrs: { color: "red" } },
+            ],
+          },
+        ],
+      },
+    ]).run();
+  };
+
+  function insertOrReplaceById(editor: any, id: string, text: string) {
+    if (!editor) return;
+  
+    // Get current HTML
+    const html = editor.getHTML();
+  
+    const regex = new RegExp(
+      `<p data-id="${id}">.*?<\\/p>`,
+      "g"
+    );
+  
+    if (regex.test(html)) {
+      // Replace existing span with new text
+      const updated = html.replace(regex, `<p data-id="${id}">${text}</p>`);
+      editor.commands.setContent(updated);
+    } else {
+      // Insert new span if not found
+      editor.commands.insertContent(
+        `<p data-id="${id}" class='test'>${text}</p>`
+      );
+    }
+  }
+
+  function clearById(editor: any, id: string) {
+    if (!editor) return;
+  
+    const html = editor.getHTML();
+    const regex = new RegExp(`<p data-id="${id}">.*?<\\/p>`, "g");
+    const updated = html.replace(regex, "");
+    editor.commands.setContent(updated);
+  }
+
+  const deleteLastLine = () => {
+    if (!editor) return;
+  
+    const doc = editor.state.doc;
+  
+    // If editor is empty, nothing to delete
+    if (!doc || !doc.lastChild) {
+      return;
+    }
+  
+    const lastNodeSize = doc.lastChild.nodeSize;
+    const from = doc.content.size - lastNodeSize;
+    const to = doc.content.size-1;
+  
+    editor.commands.command(({ tr }) => {
+      tr.delete(from, to);
+      return true;
+    });
+  };
+
+  const addParagraphWithClass = (text: string, className: string) => {
+    if (!editor) return;
+  
+    editor
+      .chain()
+      .focus()
+      .insertContent([
+        {
+          type: "paragraph",
+          attrs: { class: className },
+          content: [{ type: "text", text }],
+        },
+      ])
+      .run();
+  };
+  const deleteParagraphsByClass = (className: string) => {
+    if (!editor) return;
+  
+    // Use command API so TipTap handles dispatch correctly
+    editor.commands.command(({ tr, state, dispatch }) => {
+      const ranges: { from: number; to: number }[] = [];
+  
+      // 1) Collect ranges from the original doc
+      state.doc.descendants((node, pos) => {
+        if (node.type.name === "paragraph" && node.attrs && node.attrs.class === className) {
+          ranges.push({ from: pos, to: pos + node.nodeSize });
+        }
+      });
+  
+      if (!ranges.length) return false;
+  
+      // 2) Delete from the end -> start (descending order)
+      ranges.sort((a, b) => b.from - a.from);
+  
+      for (const { from, to } of ranges) {
+        let mappedFrom: number;
+        let mappedTo: number;
+  
+        try {
+          // Map original positions through the transaction mapping
+          mappedFrom = tr.mapping.map(from);
+          mappedTo = tr.mapping.map(to);
+        } catch (e) {
+          // If mapping fails, skip this range
+          continue;
+        }
+  
+        // Clamp to current tr.doc bounds and ensure from < to
+        const docSize = tr.doc.content.size;
+        const start = Math.max(0, Math.min(mappedFrom, docSize));
+        const end = Math.max(0, Math.min(mappedTo, docSize));
+  
+        if (end > start) {
+          tr.delete(start, end);
+        }
+      }
+  
+      // 3) Dispatch the transaction so changes are applied
+      if (dispatch) dispatch(tr);
+      return true;
+    });
+  };
+
+  const upsertParagraphByClass = (className: string, newText: string) => {
+    if (!editor) return;
+  
+    editor.commands.command(({ tr, state, dispatch }) => {
+      let found = false;
+  
+      // 1) Find and replace existing paragraphs
+      state.doc.descendants((node, pos) => {
+        if (node.type.name === "paragraph" && node.attrs?.class === className) {
+          found = true;
+  
+          const from = tr.mapping.map(pos);
+          const to = tr.mapping.map(pos + node.nodeSize);
+  
+          const newNode = state.schema.nodes.paragraph.create(
+            { class: className },
+            state.schema.text(newText)
+          );
+  
+          tr.replaceWith(from, to, newNode);
+        }
+      });
+  
+      // 2) If not found, insert a new one at the end
+      if (!found) {
+        const newNode = state.schema.nodes.paragraph.create(
+          { class: className },
+          state.schema.text(newText)
+        );
+        tr.insert(tr.doc.content.size, newNode);
+      }
+  
+      if (dispatch) dispatch(tr);
+      return true;
+    });
+  };
+  
+  
 
   const startRecording = async () => {
     
@@ -85,16 +296,24 @@ export default function TiptapEditor() {
         if (res.type === 'Turn') {
           // console.log('Transcript:', res.transcript);
           if(res.transcript && !res.turn_is_formatted){
-            setTranscribingText(res.transcript);
+            upsertParagraphByClass("note-red", res.transcript);
+            // addParagraphWithClass(res.transcript, "note-red");
           }
           if (res.transcript && res.turn_is_formatted) {
             //setTranscripts((prev) => [...prev, res.transcript]);
             if (editor) {
-              editor
-                .chain()
-                .focus()
-                .insertContent(res.transcript)
-                .run();
+              //editor.chain().focus()
+              // editor?.chain().focus().clearNodes()
+              // .deleteRange({ from: 4, to: editor.state.doc.content.size }).run();
+              deleteParagraphsByClass("note-red");
+              addParagraphWithClass(res.transcript, "note-green");
+              // editor
+              //   .chain()
+              //   .focus()
+              //   .insertContent(res.transcript)
+              //   .run();
+              // clearById(editor, "event-x"); // remove old X text
+              // insertOrReplaceById(editor, "event-y", res.transcript);
               // setTranscribingText('');
             }
           }
@@ -179,10 +398,16 @@ export default function TiptapEditor() {
     extensions: [
       StarterKit.configure({
         history: false,
+        paragraph: false,
       }),
+      CustomParagraph,
+      TextStyle,
+      Color,
       liveblocks,
     ],
   });
+
+
 
 
   const start = async () => {
